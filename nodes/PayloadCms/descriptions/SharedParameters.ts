@@ -197,11 +197,29 @@ export function createWhereFilterParameters(
 						{
 							displayName: 'Field',
 							name: 'field',
-							type: 'string',
-							default: '',
+							type: 'resourceLocator',
+							default: { mode: 'list', value: '' },
 							required: true,
-							placeholder: 'status or author.email',
-							description: 'Field path to filter on (dot notation supported for nested fields)',
+							modes: [
+								{
+									displayName: 'From List',
+									name: 'list',
+									type: 'list',
+									placeholder: 'Select a field...',
+									typeOptions: {
+										searchListMethod: 'searchFields',
+										searchable: true,
+									},
+								},
+								{
+									displayName: 'By Path',
+									name: 'name',
+									type: 'string',
+									placeholder: 'status or author.email',
+								},
+							],
+							description:
+								'Field path to filter on (auto-discovered from Payload /api/access or entered manually with dot notation)',
 						},
 						{
 							displayName: 'Operator',
@@ -309,10 +327,29 @@ export function createDocumentDataParameters(
 						{
 							displayName: 'Field Name',
 							name: 'fieldName',
-							type: 'string',
-							default: '',
+							type: 'resourceLocator',
+							default: { mode: 'list', value: '' },
 							required: true,
-							description: 'Name of the field in the Payload schema',
+							modes: [
+								{
+									displayName: 'From List',
+									name: 'list',
+									type: 'list',
+									placeholder: 'Select a field...',
+									typeOptions: {
+										searchListMethod: 'searchFields',
+										searchable: true,
+									},
+								},
+								{
+									displayName: 'By Name',
+									name: 'name',
+									type: 'string',
+									placeholder: 'title',
+								},
+							],
+							description:
+								'Name of the field in the Payload schema (auto-discovered from /api/access or entered manually)',
 						},
 						{
 							displayName: 'Field Value',

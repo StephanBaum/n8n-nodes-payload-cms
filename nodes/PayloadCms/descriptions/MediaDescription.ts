@@ -38,18 +38,36 @@ export const mediaOperations: INodeProperties[] = [
 
 export const mediaFields: INodeProperties[] = [
 	{
-		displayName: 'Upload Collection Slug',
+		displayName: 'Upload Collection',
 		name: 'collection',
-		type: 'string',
+		type: 'resourceLocator',
+		default: { mode: 'slug', value: 'media' },
 		required: true,
-		default: 'media',
-		placeholder: 'media',
 		displayOptions: {
 			show: {
 				resource: ['media'],
 			},
 		},
-		description: 'The slug of the upload-enabled Payload CMS collection (default: media)',
+		modes: [
+			{
+				displayName: 'From List',
+				name: 'list',
+				type: 'list',
+				placeholder: 'Select an upload collection...',
+				typeOptions: {
+					searchListMethod: 'searchCollections',
+					searchable: true,
+				},
+			},
+			{
+				displayName: 'By Slug',
+				name: 'slug',
+				type: 'string',
+				placeholder: 'media',
+			},
+		],
+		description:
+			'The upload-enabled Payload CMS collection (default: media, or auto-discovered via /api/access)',
 	},
 	{
 		displayName: 'Document ID',

@@ -9,7 +9,13 @@ import { NodeConnectionTypes, NodeOperationError } from 'n8n-workflow';
 
 import { sharedReadOptionFields } from './descriptions/SharedParameters';
 import type { IPayloadPaginatedResponse } from './GenericFunctions';
-import { applyPayloadOptionsToQuery, parseJsonObject, payloadApiRequest } from './GenericFunctions';
+import {
+	applyPayloadOptionsToQuery,
+	extractResourceLocatorValue,
+	parseJsonObject,
+	payloadApiRequest,
+	searchPayloadCollections,
+} from './GenericFunctions';
 
 interface ITriggerStaticData {
 	lastTimeChecked?: string;
@@ -26,7 +32,7 @@ export class PayloadCmsTrigger implements INodeType {
 		},
 		group: ['trigger'],
 		version: 1,
-		subtitle: '={{$parameter["event"] + " in " + $parameter["collection"]}}',
+		subtitle: '={{$parameter["event"] + " in " + ($parameter["collection"]?.value || $parameter["collection"])}}',
 		description: 'Triggers when documents are created or updated in a Payload CMS collection',
 		defaults: {
 			name: 'Payload CMS Trigger',
@@ -74,13 +80,31 @@ export class PayloadCmsTrigger implements INodeType {
 				description: 'Authentication method to connect to Payload CMS',
 			},
 			{
-				displayName: 'Collection Slug',
+				displayName: 'Collection',
 				name: 'collection',
-				type: 'string',
+				type: 'resourceLocator',
+				default: { mode: 'list', value: '' },
 				required: true,
-				default: '',
-				placeholder: 'posts',
-				description: 'The slug of the Payload CMS collection to poll for changes',
+				modes: [
+					{
+						displayName: 'From List',
+						name: 'list',
+						type: 'list',
+						placeholder: 'Select a collection...',
+						typeOptions: {
+							searchListMethod: 'searchCollections',
+							searchable: true,
+						},
+					},
+					{
+						displayName: 'By Slug',
+						name: 'slug',
+						type: 'string',
+						placeholder: 'posts',
+					},
+				],
+				description:
+					'The Payload CMS collection to poll for changes (auto-discovered via /api/access or entered by slug)',
 			},
 			{
 				displayName: 'Trigger Event',
@@ -139,10 +163,16 @@ export class PayloadCmsTrigger implements INodeType {
 		],
 	};
 
+	methods = {
+		listSearch: {
+			searchCollections: searchPayloadCollections,
+		},
+	};
+
 	async poll(this: IPollFunctions): Promise<INodeExecutionData[][] | null> {
-		const collection = (this.getNodeParameter('collection') as string).trim();
+		const collection = extractResourceLocatorValue(this.getNodeParameter('collection'));
 		if (!collection) {
-			throw new NodeOperationError(this.getNode(), 'Collection Slug is required');
+			throw new NodeOperationError(this.getNode(), 'Collection is required');
 		}
 
 		const event = this.getNodeParameter('event', 'created') as

@@ -1,6 +1,7 @@
 import type {
 	IDataObject,
 	IExecuteFunctions,
+	IHttpRequestMethods,
 	INodeExecutionData,
 	INodeType,
 	INodeTypeDescription,
@@ -9,19 +10,25 @@ import { NodeConnectionTypes, NodeOperationError } from 'n8n-workflow';
 
 import { authFields, authOperations } from './descriptions/AuthDescription';
 import { collectionFields, collectionOperations } from './descriptions/CollectionDescription';
+import { endpointFields, endpointOperations } from './descriptions/EndpointDescription';
 import { globalFields, globalOperations } from './descriptions/GlobalDescription';
 import { mediaFields, mediaOperations } from './descriptions/MediaDescription';
 import type { IPayloadPaginatedResponse } from './GenericFunctions';
 import {
 	applyPayloadOptionsToQuery,
 	clearJwtCache,
+	extractResourceLocatorValue,
 	getDocumentBodyFromParameters,
 	getPayloadCredentials,
 	getWhereFromParameters,
+	normalizeEndpointPath,
 	parseJsonObject,
 	payloadApiRequest,
 	payloadApiRequestAllItems,
 	payloadDownloadMediaFile,
+	searchPayloadCollections,
+	searchPayloadFields,
+	searchPayloadGlobals,
 } from './GenericFunctions';
 
 export class PayloadCms implements INodeType {
@@ -35,7 +42,8 @@ export class PayloadCms implements INodeType {
 		group: ['transform'],
 		version: 1,
 		subtitle: '={{$parameter["operation"] + ": " + $parameter["resource"]}}',
-		description: 'Interact with Payload CMS REST API (Collections, Globals, Media, and Auth)',
+		description:
+			'Interact with Payload CMS REST API (Collections, Globals, Media, Auth, and Custom Endpoints)',
 		defaults: {
 			name: 'Payload CMS',
 		},
@@ -96,6 +104,10 @@ export class PayloadCms implements INodeType {
 						value: 'collection',
 					},
 					{
+						name: 'Custom Endpoint',
+						value: 'endpoint',
+					},
+					{
 						name: 'Global',
 						value: 'global',
 					},
@@ -112,9 +124,19 @@ export class PayloadCms implements INodeType {
 			...globalFields,
 			...mediaOperations,
 			...mediaFields,
+			...endpointOperations,
+			...endpointFields,
 			...authOperations,
 			...authFields,
 		],
+	};
+
+	methods = {
+		listSearch: {
+			searchCollections: searchPayloadCollections,
+			searchGlobals: searchPayloadGlobals,
+			searchFields: searchPayloadFields,
+		},
 	};
 
 	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
@@ -127,9 +149,9 @@ export class PayloadCms implements INodeType {
 				const operation = this.getNodeParameter('operation', i) as string;
 
 				if (resource === 'collection') {
-					const collection = (this.getNodeParameter('collection', i) as string).trim();
+					const collection = extractResourceLocatorValue(this.getNodeParameter('collection', i));
 					if (!collection) {
-						throw new NodeOperationError(this.getNode(), 'Collection Slug is required', {
+						throw new NodeOperationError(this.getNode(), 'Collection is required', {
 							itemIndex: i,
 						});
 					}
@@ -314,9 +336,9 @@ export class PayloadCms implements INodeType {
 						});
 					}
 				} else if (resource === 'global') {
-					const globalSlug = (this.getNodeParameter('globalSlug', i) as string).trim();
+					const globalSlug = extractResourceLocatorValue(this.getNodeParameter('globalSlug', i));
 					if (!globalSlug) {
-						throw new NodeOperationError(this.getNode(), 'Global Slug is required', {
+						throw new NodeOperationError(this.getNode(), 'Global is required', {
 							itemIndex: i,
 						});
 					}
@@ -354,7 +376,8 @@ export class PayloadCms implements INodeType {
 						});
 					}
 				} else if (resource === 'media') {
-					const collection = (this.getNodeParameter('collection', i, 'media') as string).trim();
+					const collection =
+						extractResourceLocatorValue(this.getNodeParameter('collection', i, 'media')) || 'media';
 					const encodedCollection = encodeURIComponent(collection);
 					const options = this.getNodeParameter('options', i, {}) as IDataObject;
 					const qs: IDataObject = {};
@@ -455,6 +478,65 @@ export class PayloadCms implements INodeType {
 							pairedItem: { item: i },
 						});
 					}
+				} else if (resource === 'endpoint') {
+					const credentials = await getPayloadCredentials(this, i);
+					const rawPath = (this.getNodeParameter('endpointPath', i) as string).trim();
+					if (!rawPath) {
+						throw new NodeOperationError(this.getNode(), 'Endpoint Path is required', {
+							itemIndex: i,
+						});
+					}
+					const normalizedPath = normalizeEndpointPath(rawPath, credentials.apiRoute);
+					const method = operation.toUpperCase() as IHttpRequestMethods;
+
+					const options = this.getNodeParameter('options', i, {}) as IDataObject;
+					const qs: IDataObject = {};
+					applyPayloadOptionsToQuery(qs, options);
+
+					const queryParameters = this.getNodeParameter('queryParameters', i, {}) as {
+						parameters?: Array<{ name: string; value: string }>;
+					};
+					for (const param of queryParameters.parameters ?? []) {
+						const paramName = (param.name || '').trim();
+						if (paramName) {
+							qs[paramName] = param.value;
+						}
+					}
+
+					const headers: IDataObject = {};
+					const customHeaders = options.headers as
+						| { headerValues?: Array<{ name: string; value: string }> }
+						| undefined;
+					for (const header of customHeaders?.headerValues ?? []) {
+						const headerName = (header.name || '').trim();
+						if (headerName) {
+							headers[headerName] = header.value;
+						}
+					}
+
+					let body: IDataObject | undefined;
+					if (method !== 'GET') {
+						const bodyRaw = this.getNodeParameter('bodyJson', i, '{}');
+						const parsedBody = parseJsonObject(this, bodyRaw, 'Request Body (JSON)', i);
+						if (Object.keys(parsedBody).length > 0) {
+							body = parsedBody;
+						}
+					}
+
+					const response = await payloadApiRequest.call(this, method, normalizedPath, body, qs, {
+						headers,
+						returnFullResponse: Boolean(options.returnFullResponse),
+					});
+
+					const normalizedOutput: IDataObject =
+						response !== null && typeof response === 'object' && !Array.isArray(response)
+							? (response as IDataObject)
+							: { data: response as IDataObject };
+
+					returnData.push({
+						json: normalizedOutput,
+						pairedItem: { item: i },
+					});
 				} else if (resource === 'auth') {
 					const credentials = await getPayloadCredentials(this, i);
 					const authCollectionOverride = (

@@ -8,11 +8,13 @@ Built with **zero runtime dependencies**, full **n8n AI Agent Tool** support (`u
 
 ### Nodes Included
 - **Payload CMS** (`payloadCms`) — Action node & AI Agent Tool supporting:
+  - **Zero-Mod Autodiscovery**: Automatically discovers your Collections, Globals, and nested Field paths directly from Payload's built-in `GET /api/access` endpoint (with a **From List / By Slug** resource locator) — no custom reflection endpoint or backend code required
   - **Collections**: `Get Many` (with pagination, Filter Builder, raw JSON `where`, sorting, `select`), `Get`, `Create`, `Update`, `Update Many` (bulk `PATCH` with `where`), `Delete`, `Delete Many` (bulk `DELETE` with `where`), and `Count`
   - **Globals**: `Get` and `Update`
   - **Media / Uploads**: `Upload` binary files (`multipart/form-data` with optional `_payload` metadata), `Update File`, and `Download` (original file or named Payload image size variant into n8n binary data)
+  - **Custom Endpoints**: Call any custom Payload REST endpoint (`GET`, `POST`, `PUT`, `PATCH`, `DELETE`) with automatic authentication, query parameters, JSON bodies, custom headers, and Payload options (`depth`, `locale`, `fallback-locale`, `draft`)
   - **Auth**: `Login`, `Get Current User (Me)`, `Refresh Token`, and `Logout`
-- **Payload CMS Trigger** (`payloadCmsTrigger`) — Polling trigger node supporting:
+- **Payload CMS Trigger** (`payloadCmsTrigger`) — Polling trigger node with auto-discovered collection dropdowns supporting:
   - `Document Created`
   - `Document Updated`
   - `Document Created or Updated`

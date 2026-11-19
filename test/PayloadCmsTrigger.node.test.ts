@@ -48,7 +48,7 @@ describe('PayloadCmsTrigger Node', () => {
 		const { ctx, httpRequestWithAuthentication } = createPollContext(
 			{
 				authentication: 'apiKey',
-				collection: 'posts',
+				collection: { mode: 'list', value: 'posts' },
 				event: 'created',
 				options: { limit: 5 },
 			},

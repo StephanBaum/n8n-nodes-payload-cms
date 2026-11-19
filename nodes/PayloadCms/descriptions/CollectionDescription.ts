@@ -73,18 +73,36 @@ export const collectionOperations: INodeProperties[] = [
 
 export const collectionFields: INodeProperties[] = [
 	{
-		displayName: 'Collection Slug',
+		displayName: 'Collection',
 		name: 'collection',
-		type: 'string',
+		type: 'resourceLocator',
+		default: { mode: 'list', value: '' },
 		required: true,
-		default: '',
-		placeholder: 'posts',
 		displayOptions: {
 			show: {
 				resource: ['collection'],
 			},
 		},
-		description: 'The slug of the Payload CMS collection (e.g., posts, pages, products)',
+		modes: [
+			{
+				displayName: 'From List',
+				name: 'list',
+				type: 'list',
+				placeholder: 'Select a collection...',
+				typeOptions: {
+					searchListMethod: 'searchCollections',
+					searchable: true,
+				},
+			},
+			{
+				displayName: 'By Slug',
+				name: 'slug',
+				type: 'string',
+				placeholder: 'posts',
+			},
+		],
+		description:
+			'The Payload CMS collection (auto-discovered via /api/access or entered by slug)',
 	},
 	{
 		displayName: 'Document ID',

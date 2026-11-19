@@ -36,18 +36,35 @@ export const globalOperations: INodeProperties[] = [
 
 export const globalFields: INodeProperties[] = [
 	{
-		displayName: 'Global Slug',
+		displayName: 'Global',
 		name: 'globalSlug',
-		type: 'string',
+		type: 'resourceLocator',
+		default: { mode: 'list', value: '' },
 		required: true,
-		default: '',
-		placeholder: 'site-settings',
 		displayOptions: {
 			show: {
 				resource: ['global'],
 			},
 		},
-		description: 'The slug of the Payload CMS global (e.g., header, footer, site-settings)',
+		modes: [
+			{
+				displayName: 'From List',
+				name: 'list',
+				type: 'list',
+				placeholder: 'Select a global...',
+				typeOptions: {
+					searchListMethod: 'searchGlobals',
+					searchable: true,
+				},
+			},
+			{
+				displayName: 'By Slug',
+				name: 'slug',
+				type: 'string',
+				placeholder: 'site-settings',
+			},
+		],
+		description: 'The Payload CMS global (auto-discovered via /api/access or entered by slug)',
 	},
 
 	...createDocumentDataParameters('global', ['update'], 'Global Data'),

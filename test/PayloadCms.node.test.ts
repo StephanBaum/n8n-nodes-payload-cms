@@ -329,7 +329,7 @@ describe('PayloadCms Node', () => {
 				authentication: 'apiKey',
 				resource: 'collection',
 				operation: 'get',
-				collection: 'posts',
+				collection: { mode: 'list', value: 'posts' },
 				documentId: '123',
 			},
 			{ httpRequestWithAuthentication, continueOnFail: true },
@@ -338,5 +338,69 @@ describe('PayloadCms Node', () => {
 		const [output] = await node.execute.call(ctx);
 		expect(output[0].pairedItem).toEqual({ item: 0 });
 		expect(output[0].json.error).toBeDefined();
+	});
+
+	it('Custom Endpoint -> POST sends body, query params, Payload options, and custom headers', async () => {
+		const httpRequestWithAuthentication = vi.fn().mockResolvedValue({
+			ok: true,
+			revalidated: ['/blog'],
+		});
+
+		const ctx = createExecuteContext(
+			{
+				authentication: 'apiKey',
+				resource: 'endpoint',
+				operation: 'post',
+				endpointPath: '/api/revalidate',
+				bodyJson: '{"paths":["/blog"]}',
+				queryParameters: {
+					parameters: [{ name: 'secret', value: 'abc' }],
+				},
+				options: {
+					locale: 'en',
+					headers: {
+						headerValues: [{ name: 'X-Source', value: 'n8n' }],
+					},
+				},
+			},
+			{ httpRequestWithAuthentication },
+		);
+
+		const [output] = await node.execute.call(ctx);
+		expect(output[0].json).toEqual({ ok: true, revalidated: ['/blog'] });
+		expect(httpRequestWithAuthentication).toHaveBeenCalledWith(
+			'payloadCmsApi',
+			expect.objectContaining({
+				method: 'POST',
+				url: 'https://cms.example.com/api/revalidate?locale=en&secret=abc',
+				body: { paths: ['/blog'] },
+				headers: expect.objectContaining({ 'X-Source': 'n8n' }),
+			}),
+		);
+	});
+
+	it('Custom Endpoint -> GET wraps array response cleanly in { data }', async () => {
+		const httpRequestWithAuthentication = vi.fn().mockResolvedValue(['item1', 'item2']);
+		const ctx = createExecuteContext(
+			{
+				authentication: 'apiKey',
+				resource: 'endpoint',
+				operation: 'get',
+				endpointPath: 'custom-list',
+				queryParameters: {},
+				options: {},
+			},
+			{ httpRequestWithAuthentication },
+		);
+
+		const [output] = await node.execute.call(ctx);
+		expect(output[0].json).toEqual({ data: ['item1', 'item2'] });
+		expect(httpRequestWithAuthentication).toHaveBeenCalledWith(
+			'payloadCmsApi',
+			expect.objectContaining({
+				method: 'GET',
+				url: 'https://cms.example.com/api/custom-list',
+			}),
+		);
 	});
 });

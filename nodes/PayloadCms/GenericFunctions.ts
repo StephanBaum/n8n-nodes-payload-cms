@@ -4,6 +4,8 @@ import type {
 	IHttpRequestMethods,
 	IHttpRequestOptions,
 	ILoadOptionsFunctions,
+	INodeListSearchItems,
+	INodeListSearchResult,
 	IPollFunctions,
 	JsonObject,
 } from 'n8n-workflow';
@@ -20,9 +22,43 @@ export interface IPayloadCredentials {
 }
 
 export interface IWhereFilterCondition {
-	field: string;
+	field: string | { mode?: string; value?: string };
 	operator: string;
 	value: string;
+}
+
+export interface IPayloadFieldAccess {
+	create?: { permission?: boolean };
+	read?: { permission?: boolean };
+	update?: { permission?: boolean };
+	fields?: Record<string, IPayloadFieldAccess>;
+}
+
+export interface IPayloadAccessResponse {
+	canAccessAdmin?: boolean;
+	collections?: Record<
+		string,
+		{
+			create?: { permission?: boolean };
+			read?: { permission?: boolean };
+			update?: { permission?: boolean };
+			delete?: { permission?: boolean };
+			fields?: Record<string, IPayloadFieldAccess>;
+		}
+	>;
+	globals?: Record<
+		string,
+		{
+			read?: { permission?: boolean };
+			update?: { permission?: boolean };
+			fields?: Record<string, IPayloadFieldAccess>;
+		}
+	>;
+}
+
+interface ICachedAccess {
+	data: IPayloadAccessResponse;
+	expiresAt: number;
 }
 
 export interface IPayloadPaginatedResponse {
@@ -46,6 +82,8 @@ interface ICachedJwt {
 type PayloadContext = IExecuteFunctions | IPollFunctions | ILoadOptionsFunctions;
 
 const jwtCache = new Map<string, ICachedJwt>();
+const accessCache = new Map<string, ICachedAccess>();
+const ACCESS_CACHE_TTL_MS = 30_000;
 
 /**
  * Clears the in-memory JWT cache (primarily useful for tests or after explicit logout).
@@ -56,6 +94,56 @@ export function clearJwtCache(cacheKey?: string): void {
 	} else {
 		jwtCache.clear();
 	}
+}
+
+/**
+ * Clears the in-memory `/api/access` autodiscovery cache.
+ */
+export function clearDiscoveryCache(): void {
+	accessCache.clear();
+}
+
+/**
+ * Safely extracts a string value from either an n8n `resourceLocator` object (`{ mode, value }`)
+ * or a plain string parameter (ensuring compatibility with expressions and AI Agent Tool calls).
+ */
+export function extractResourceLocatorValue(param: unknown): string {
+	if (typeof param === 'string') {
+		return param.trim();
+	}
+	if (param && typeof param === 'object' && 'value' in param) {
+		const rawValue = (param as { value?: unknown }).value;
+		return typeof rawValue === 'string' ? rawValue.trim() : String(rawValue ?? '').trim();
+	}
+	return '';
+}
+
+/**
+ * Normalizes a custom endpoint path relative to Payload's `apiRoute` so users can enter
+ * `/my-route`, `my-route`, or `/api/my-route` without duplicating the API prefix.
+ */
+export function normalizeEndpointPath(endpointPath: string, apiRoute = '/api'): string {
+	let cleaned = endpointPath.trim();
+	if (!cleaned) {
+		return '/';
+	}
+	if (!cleaned.startsWith('/')) {
+		cleaned = `/${cleaned}`;
+	}
+
+	let normalizedRoute = (apiRoute || '/api').trim().replace(/\/+$/, '');
+	if (normalizedRoute && !normalizedRoute.startsWith('/')) {
+		normalizedRoute = `/${normalizedRoute}`;
+	}
+
+	if (
+		normalizedRoute &&
+		cleaned.toLowerCase().startsWith(`${normalizedRoute.toLowerCase()}/`)
+	) {
+		return cleaned.slice(normalizedRoute.length);
+	}
+
+	return cleaned;
 }
 
 /**
@@ -199,7 +287,7 @@ export function buildWhereFromFilters(
 	const clauses: IDataObject[] = [];
 
 	for (const condition of conditions) {
-		const field = (condition.field || '').trim();
+		const field = extractResourceLocatorValue(condition.field);
 		const operator = condition.operator || 'equals';
 		if (!field) {
 			continue;
@@ -304,7 +392,7 @@ export function getDocumentBodyFromParameters(
 
 	const fieldsUi = context.getNodeParameter('fieldsUi', itemIndex, {}) as {
 		fieldValues?: Array<{
-			fieldName: string;
+			fieldName: string | { mode?: string; value?: string };
 			fieldValue: string;
 			parseJson?: boolean;
 		}>;
@@ -312,7 +400,7 @@ export function getDocumentBodyFromParameters(
 
 	const body: IDataObject = {};
 	for (const entry of fieldsUi.fieldValues ?? []) {
-		const key = (entry.fieldName || '').trim();
+		const key = extractResourceLocatorValue(entry.fieldName);
 		if (!key) {
 			continue;
 		}
@@ -413,7 +501,9 @@ export async function getPayloadCredentials(
 	const authentication = (
 		'getInputData' in context
 			? context.getNodeParameter('authentication', itemIndex, 'apiKey')
-			: context.getNodeParameter('authentication', 'apiKey')
+			: 'getCurrentNodeParameter' in context
+				? (context.getCurrentNodeParameter('authentication') ?? 'apiKey')
+				: context.getNodeParameter('authentication', 'apiKey')
 	) as 'apiKey' | 'jwt';
 
 	const credName = authentication === 'jwt' ? 'payloadCmsJwtApi' : 'payloadCmsApi';
@@ -669,4 +759,172 @@ export async function payloadDownloadMediaFile(
 
 		throw new NodeApiError(this.getNode(), error as JsonObject);
 	}
+}
+
+/**
+ * Formats a Payload slug into a readable label (e.g., `site-settings` -> `Site Settings (site-settings)`).
+ */
+export function formatSlugLabel(slug: string): string {
+	const readable = slug
+		.split(/[-_]+/)
+		.filter(Boolean)
+		.map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+		.join(' ');
+	const isInternal = slug.startsWith('payload-');
+	return isInternal ? `${readable} [internal] (${slug})` : `${readable} (${slug})`;
+}
+
+/**
+ * Recursively flattens field access maps returned by Payload's built-in `GET /api/access`
+ * into dot-notation field paths (e.g., `title`, `meta.description`).
+ */
+export function flattenAccessFields(
+	fieldsMap: Record<string, IPayloadFieldAccess> | undefined,
+	prefix = '',
+): string[] {
+	if (!fieldsMap || typeof fieldsMap !== 'object') {
+		return [];
+	}
+
+	const paths: string[] = [];
+	for (const [fieldName, fieldAccess] of Object.entries(fieldsMap)) {
+		const fullPath = prefix ? `${prefix}.${fieldName}` : fieldName;
+		paths.push(fullPath);
+
+		if (fieldAccess && typeof fieldAccess.fields === 'object' && fieldAccess.fields !== null) {
+			paths.push(...flattenAccessFields(fieldAccess.fields, fullPath));
+		}
+	}
+
+	return paths;
+}
+
+/**
+ * Calls Payload CMS's built-in `GET /api/access` endpoint to auto-discover collections,
+ * globals, and field schemas without any backend server modifications.
+ * Caches responses for 30 seconds per credential target.
+ */
+export async function fetchPayloadAccess(
+	this: PayloadContext,
+	forceRefresh = false,
+): Promise<IPayloadAccessResponse> {
+	const credentials = await getPayloadCredentials(this);
+	const cacheKey = [
+		buildApiBaseUrl(credentials),
+		credentials.authenticationType,
+		credentials.authCollection || 'users',
+		credentials.email || '',
+	].join('|');
+
+	const now = Date.now();
+	if (!forceRefresh) {
+		const cached = accessCache.get(cacheKey);
+		if (cached && cached.expiresAt > now) {
+			return cached.data;
+		}
+	}
+
+	const response = (await payloadApiRequest.call(this, 'GET', '/access')) as IPayloadAccessResponse;
+	const normalized: IPayloadAccessResponse = response && typeof response === 'object' ? response : {};
+
+	accessCache.set(cacheKey, {
+		data: normalized,
+		expiresAt: now + ACCESS_CACHE_TTL_MS,
+	});
+
+	return normalized;
+}
+
+function filterSearchItems(items: INodeListSearchItems[], filter?: string): INodeListSearchItems[] {
+	if (!filter || !filter.trim()) {
+		return items;
+	}
+	const needle = filter.trim().toLowerCase();
+	return items.filter(
+		(item) =>
+			item.name.toLowerCase().includes(needle) || String(item.value).toLowerCase().includes(needle),
+	);
+}
+
+/**
+ * n8n `listSearch` method: Auto-discovers Payload CMS collections via built-in `GET /api/access`.
+ * User collections are sorted alphabetically first; internal `payload-*` collections appear after.
+ */
+export async function searchPayloadCollections(
+	this: ILoadOptionsFunctions,
+	filter?: string,
+): Promise<INodeListSearchResult> {
+	const access = await fetchPayloadAccess.call(this);
+	const slugs = Object.keys(access.collections ?? {});
+
+	const userSlugs = slugs.filter((s) => !s.startsWith('payload-')).sort((a, b) => a.localeCompare(b));
+	const internalSlugs = slugs
+		.filter((s) => s.startsWith('payload-'))
+		.sort((a, b) => a.localeCompare(b));
+
+	const items: INodeListSearchItems[] = [...userSlugs, ...internalSlugs].map((slug) => ({
+		name: formatSlugLabel(slug),
+		value: slug,
+	}));
+
+	return {
+		results: filterSearchItems(items, filter),
+	};
+}
+
+/**
+ * n8n `listSearch` method: Auto-discovers Payload CMS globals via built-in `GET /api/access`.
+ */
+export async function searchPayloadGlobals(
+	this: ILoadOptionsFunctions,
+	filter?: string,
+): Promise<INodeListSearchResult> {
+	const access = await fetchPayloadAccess.call(this);
+	const slugs = Object.keys(access.globals ?? {}).sort((a, b) => a.localeCompare(b));
+
+	const items: INodeListSearchItems[] = slugs.map((slug) => ({
+		name: formatSlugLabel(slug),
+		value: slug,
+	}));
+
+	return {
+		results: filterSearchItems(items, filter),
+	};
+}
+
+/**
+ * n8n `listSearch` method: Auto-discovers field paths for the currently selected Collection or Global
+ * via Payload's built-in `GET /api/access` endpoint.
+ */
+export async function searchPayloadFields(
+	this: ILoadOptionsFunctions,
+	filter?: string,
+): Promise<INodeListSearchResult> {
+	const access = await fetchPayloadAccess.call(this);
+	const resource = (this.getCurrentNodeParameter('resource') as string) || 'collection';
+
+	let fieldPaths: string[] = [];
+
+	if (resource === 'global') {
+		const globalSlug = extractResourceLocatorValue(this.getCurrentNodeParameter('globalSlug'));
+		const globalAccess = globalSlug ? access.globals?.[globalSlug] : undefined;
+		fieldPaths = flattenAccessFields(globalAccess?.fields);
+	} else {
+		const collectionSlug = extractResourceLocatorValue(this.getCurrentNodeParameter('collection'));
+		const collectionAccess = collectionSlug ? access.collections?.[collectionSlug] : undefined;
+		const discovered = flattenAccessFields(collectionAccess?.fields);
+		const systemFields = ['id', 'createdAt', 'updatedAt'];
+		fieldPaths = Array.from(new Set([...discovered, ...systemFields]));
+	}
+
+	const items: INodeListSearchItems[] = fieldPaths
+		.sort((a, b) => a.localeCompare(b))
+		.map((path) => ({
+			name: path,
+			value: path,
+		}));
+
+	return {
+		results: filterSearchItems(items, filter),
+	};
 }
