@@ -18,7 +18,7 @@ function createPollContext(
 		getMode: vi.fn().mockReturnValue(options.mode ?? 'trigger'),
 		getNode: vi
 			.fn()
-			.mockReturnValue({ name: 'Payload CMS Trigger', type: 'n8n-nodes-payload-cms.payloadCmsTrigger' } as INode),
+			.mockReturnValue({ name: 'Payload CMS Trigger', type: '@brussobaum/n8n-nodes-payload-cms.payloadCmsTrigger' } as INode),
 		getNodeParameter: vi.fn((name: string, fallback?: unknown) => {
 			if (name in params) return params[name];
 			return fallback;

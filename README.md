@@ -1,4 +1,4 @@
-# n8n-nodes-payload-cms
+# @brussobaum/n8n-nodes-payload-cms
 
 Community node package for [n8n](https://n8n.io/) providing full integration with the [Payload CMS](https://payloadcms.com/) REST API (v2 & v3).
 
@@ -46,15 +46,15 @@ Both credentials support custom `apiRoute` prefixes (default `/api`) and custom 
 ## Installation
 
 ### In n8n (Community Nodes)
-Once published to npm, go to **Settings → Community Nodes → Install** and enter:
+Go to **Settings → Community Nodes → Install** and enter:
 ```
-n8n-nodes-payload-cms
+@brussobaum/n8n-nodes-payload-cms
 ```
 
 ### Publishing & n8n Verification
 This repository includes `.github/workflows/publish.yml` configured with `--provenance` (`id-token: write`) for n8n Creator Portal verification:
 1. Configure [npm Trusted Publishers](https://docs.npmjs.com/trusted-publishers/) (or add an `NPM_TOKEN` repository secret) for `StephanBaum/n8n-nodes-payload-cms`.
-2. Create a GitHub Release (e.g., `v1.0.0`) to automatically build, lint, test, and publish `n8n-nodes-payload-cms` to npm with provenance.
+2. Create a GitHub Release (e.g., `v1.0.0`) to automatically build, lint, test, and publish `@brussobaum/n8n-nodes-payload-cms` to npm with provenance.
 3. Submit the published npm package in the [n8n Creator Portal](https://creators.n8n.io/) to make it searchable and installable directly inside n8n Cloud and self-hosted instances.
 
 ### Local Development & Testing in n8n
@@ -69,7 +69,7 @@ To link this package into a local n8n instance:
 ```bash
 npm link
 cd ~/.n8n/custom
-npm link n8n-nodes-payload-cms
+npm link @brussobaum/n8n-nodes-payload-cms
 n8n start
 ```
 

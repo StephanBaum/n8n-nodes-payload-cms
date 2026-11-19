@@ -1,5 +1,5 @@
 {
-  "name": "n8n-nodes-payload-cms",
+  "name": "@brussobaum/n8n-nodes-payload-cms",
   "version": "1.0.0",
   "description": "n8n community node for Payload CMS (v2 & v3 REST API) with Collections, Globals, Media Uploads, Auth, AI Agent Tool support, and Polling Trigger",
   "keywords": [

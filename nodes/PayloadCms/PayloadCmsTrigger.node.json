@@ -1,5 +1,5 @@
 {
-	"node": "n8n-nodes-payload-cms.payloadCmsTrigger",
+	"node": "@brussobaum/n8n-nodes-payload-cms.payloadCmsTrigger",
 	"nodeVersion": "1.0",
 	"codexVersion": "1.0",
 	"categories": ["Development", "Data & Storage", "Marketing & Content"],

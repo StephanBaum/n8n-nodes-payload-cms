@@ -20,7 +20,7 @@ function createExecuteContext(
 
 	return {
 		getInputData: vi.fn().mockReturnValue(items),
-		getNode: vi.fn().mockReturnValue({ name: 'Payload CMS', type: 'n8n-nodes-payload-cms.payloadCms' } as INode),
+		getNode: vi.fn().mockReturnValue({ name: 'Payload CMS', type: '@brussobaum/n8n-nodes-payload-cms.payloadCms' } as INode),
 		getNodeParameter: vi.fn((name: string, _itemIndex: number, fallback?: unknown) => {
 			if (name in params) return params[name];
 			return fallback;

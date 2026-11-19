@@ -34,7 +34,7 @@ function createMockContext(
 
 	return {
 		getInputData: vi.fn().mockReturnValue([{ json: {} }]),
-		getNode: vi.fn().mockReturnValue({ name: 'Payload CMS', type: 'n8n-nodes-payload-cms.payloadCms' } as INode),
+		getNode: vi.fn().mockReturnValue({ name: 'Payload CMS', type: '@brussobaum/n8n-nodes-payload-cms.payloadCms' } as INode),
 		getNodeParameter: vi.fn((name: string) => {
 			if (name === 'authentication') return credentials.authenticationType;
 			return undefined;
@@ -351,7 +351,7 @@ describe('GenericFunctions', () => {
 			const loadCtx = {
 				getNode: vi
 					.fn()
-					.mockReturnValue({ name: 'Payload CMS', type: 'n8n-nodes-payload-cms.payloadCms' } as INode),
+					.mockReturnValue({ name: 'Payload CMS', type: '@brussobaum/n8n-nodes-payload-cms.payloadCms' } as INode),
 				getCurrentNodeParameter: vi.fn((name: string) => {
 					if (name === 'authentication') return 'apiKey';
 					if (name === 'resource') return 'collection';
