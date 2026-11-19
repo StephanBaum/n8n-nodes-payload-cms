@@ -1,0 +1,71 @@
+{
+  "name": "n8n-nodes-payload-cms",
+  "version": "1.0.0",
+  "description": "n8n community node for Payload CMS (v2 & v3 REST API) with Collections, Globals, Media Uploads, Auth, AI Agent Tool support, and Polling Trigger",
+  "keywords": [
+    "n8n-community-node-package",
+    "n8n",
+    "payload",
+    "payloadcms",
+    "payload-cms",
+    "cms",
+    "headless-cms"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/StephanBaum/n8n-nodes-payload-cms#readme",
+  "bugs": {
+    "url": "https://github.com/StephanBaum/n8n-nodes-payload-cms/issues"
+  },
+  "author": {
+    "name": "Stephan Baum",
+    "email": "sb@brussobaum.de"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/StephanBaum/n8n-nodes-payload-cms.git"
+  },
+  "main": "index.js",
+  "engines": {
+    "node": ">=20.15"
+  },
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "build": "npm run clean && tsc && node scripts/copy-assets.mjs",
+    "build:watch": "tsc --watch",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run build && npm run lint && npm test"
+  },
+  "files": [
+    "dist"
+  ],
+  "n8n": {
+    "n8nNodesApiVersion": 1,
+    "strict": true,
+    "credentials": [
+      "dist/credentials/PayloadCmsApi.credentials.js",
+      "dist/credentials/PayloadCmsJwtApi.credentials.js"
+    ],
+    "nodes": [
+      "dist/nodes/PayloadCms/PayloadCms.node.js",
+      "dist/nodes/PayloadCms/PayloadCmsTrigger.node.js"
+    ]
+  },
+  "peerDependencies": {
+    "n8n-workflow": "*"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@eslint/js": "^9.29.0",
+    "@n8n/eslint-plugin-community-nodes": "^0.41.0",
+    "@types/node": "^22.0.0",
+    "eslint": "^9.29.0",
+    "n8n-workflow": "^2.16.0",
+    "typescript": "^5.8.0",
+    "typescript-eslint": "^8.35.0",
+    "vitest": "^3.2.0"
+  }
+}

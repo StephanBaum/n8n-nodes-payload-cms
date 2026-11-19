@@ -1,0 +1,19 @@
+{
+	"node": "n8n-nodes-payload-cms.payloadCms",
+	"nodeVersion": "1.0",
+	"codexVersion": "1.0",
+	"categories": ["Development", "Data & Storage", "Marketing & Content"],
+	"resources": {
+		"credentialDocumentation": [
+			{
+				"url": "https://payloadcms.com/docs/authentication/overview"
+			}
+		],
+		"primaryDocumentation": [
+			{
+				"url": "https://payloadcms.com/docs/rest-api/overview"
+			}
+		]
+	},
+	"alias": ["Payload", "Payload CMS", "CMS", "Headless CMS"]
+}
